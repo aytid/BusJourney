@@ -1,6 +1,10 @@
 import streamlit as st
 import datetime
+import matplotlib
 import matplotlib.pyplot as plt
+
+# Ensure Matplotlib uses a backend compatible with Streamlit
+matplotlib.use('Agg')
 
 def get_best_seat(time, direction):
     hour = time.hour
@@ -19,17 +23,17 @@ def get_best_seat(time, direction):
     return f"Choose a seat on the {sun_side[direction]} side to minimize sun exposure."
 
 def plot_bus_seating(best_side):
-    fig, ax = plt.subplots(figsize=(6, 6))
-    seats = [(i, j) for i in range(4) for j in range(2)]  # 4 rows, 2 columns
+    fig, ax = plt.subplots(figsize=(4, 6))
+    seats = [(i, j) for i in range(5) for j in range(2)]  # 5 rows, 2 columns
     
     for seat in seats:
         color = "yellow" if (best_side == "Right" and seat[1] == 1) or (best_side == "Left" and seat[1] == 0) else "gray"
         ax.add_patch(plt.Rectangle((seat[1], -seat[0]), 1, 1, edgecolor='black', facecolor=color))
         ax.text(seat[1] + 0.5, -seat[0] + 0.5, f"{chr(65+seat[0])}{seat[1]+1}", 
-                ha='center', va='center', fontsize=12, color='black')
+                ha='center', va='center', fontsize=10, color='black')
     
     ax.set_xlim(-0.5, 2.5)
-    ax.set_ylim(-4.5, 0.5)
+    ax.set_ylim(-5.5, 0.5)
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_title("Bus Seating Layout")
@@ -48,4 +52,3 @@ if st.button("Find Best Seat"):
     if "Choose a seat on the" in best_seat:
         best_side = best_seat.split(" ")[-2]
         plot_bus_seating(best_side)
-

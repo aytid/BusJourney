@@ -1,42 +1,67 @@
 import streamlit as st
 import datetime
-import plotly.figure_factory as ff
+from suntime import Sun
+from geopy.geocoders import Nominatim
+from timezonefinder import TimezoneFinder
+import pytz
 
-def get_best_seat(time, direction):
-    hour = time.hour
-    morning = hour < 12
-    evening = hour >= 16
+# Function to get latitude & longitude of a location
+def get_lat_lon(location):
+    geolocator = Nominatim(user_agent="geo_locator")
+    loc = geolocator.geocode(location)
+    if loc:
+        return loc.latitude, loc.longitude
+    else:
+        return None, None
+
+# Function to get sunrise and sunset times for a location
+def get_sun_times(lat, lon):
+    sun = Sun(lat, lon)
+    today = datetime.date.today()
+    sunrise = sun.get_sunrise_time().time()  # UTC time
+    sunset = sun.get_sunset_time().time()  # UTC time
+    return sunrise, sunset
+
+# Function to determine the best seat side
+def get_best_seat_side(travel_time, sunrise, sunset):
+    try:
+        time_obj = datetime.datetime.strptime(travel_time.strip(), "%H:%M").time()
+
+        # Morning: Sun rises in the EAST (sit on LEFT)
+        if sunrise <= time_obj < sunset:
+            return "LEFT (Sun in the east, avoid glare)"
+        else:
+            return "RIGHT (Sun in the west, avoid glare)"
     
-    sun_side = {
-        "North": "Right" if morning else "Left" if evening else None,
-        "South": "Left" if morning else "Right" if evening else None,
-        "East": "Front" if morning else "Back" if evening else None,
-        "West": "Back" if morning else "Front" if evening else None,
-    }
-    
-    if sun_side[direction] is None:
-        return "Sun exposure is balanced. Any seat is fine."
-    return f"Choose a seat on the {sun_side[direction]} side to minimize sun exposure."
+    except ValueError:
+        return "Invalid time format! Please enter time as HH:MM (24-hour format)."
 
-def plot_bus_seating(best_side):
-    labels = [["A1", "A2"], ["B1", "B2"], ["C1", "C2"], ["D1", "D2"], ["E1", "E2"]]
-    colors = [["yellow" if (best_side == "Right" and j == 1) or (best_side == "Left" and j == 0) else "lightgray" for j in range(2)] for i in range(5)]
-    
-    fig = ff.create_annotated_heatmap(z=[[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]], 
-                                      annotation_text=labels, colorscale=colors, showscale=False)
-    
-    st.plotly_chart(fig)
+st.title("Best Bus Seating Position Based on Sun Exposure")
 
-st.title("Best Bus Seating for Sun Exposure Reduction")
-
-col1, col2 = st.columns(2)
-
-time = col1.time_input("Select Journey Time", datetime.datetime.now().time())
-direction = col2.selectbox("Select Bus Direction", ["North", "South", "East", "West"])
+from_address = st.text_input("Enter FROM location:")
+to_address = st.text_input("Enter TO location:")
+travel_time = st.text_input("Enter travel time (HH:MM in 24-hour format):")
 
 if st.button("Find Best Seat"):
-    best_seat = get_best_seat(time, direction)
-    st.success(best_seat)
-    if "Choose a seat on the" in best_seat:
-        best_side = best_seat.split(" ")[-2]
-        plot_bus_seating(best_side)
+    lat, lon = get_lat_lon(from_address)
+    if lat and lon:
+        # Get sunrise & sunset times
+        sunrise, sunset = get_sun_times(lat, lon)
+
+        # Convert sunrise & sunset to local timezone
+        tf = TimezoneFinder()
+        timezone_str = tf.timezone_at(lng=lon, lat=lat)
+        timezone = pytz.timezone(timezone_str)
+
+        sunrise_local = datetime.datetime.combine(datetime.date.today(), sunrise).astimezone(timezone).time()
+        sunset_local = datetime.datetime.combine(datetime.date.today(), sunset).astimezone(timezone).time()
+
+        # Get best seat side
+        best_seat = get_best_seat_side(travel_time, sunrise_local, sunset_local)
+
+        # Display results
+        st.success(f"Traveling from {from_address} to {to_address} at {travel_time}")
+        st.info(f"🌅 Sunrise: {sunrise_local} | 🌇 Sunset: {sunset_local}")
+        st.success(f"✅ Best seat: Sit on the {best_seat} side of the bus.")
+    else:
+        st.error("❌ Could not find location. Please enter a valid city or place.")

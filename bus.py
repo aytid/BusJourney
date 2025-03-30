@@ -48,4 +48,4 @@ if st.button("Find Best Seat"):
     if "Choose a seat on the" in best_seat:
         best_side = best_seat.split(" ")[-2]
         plot_bus_seating(best_side)
-￼Enter
+
